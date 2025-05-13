@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+
+{% block title %}统计分析{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row mb-4">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">时间使用统计</h4>
+                        <div class="d-flex">
+                            <input type="date" class="form-control me-2" id="date-picker" 
+                                   value="{{ selected_date.strftime('%Y-%m-%d') }}">
+                            <select class="form-select me-2" id="view-type">
+                                <option value="week" {% if view_type == 'week' %}selected{% endif %}>周视图</option>
+                                <option value="month" {% if view_type == 'month' %}selected{% endif %}>月视图</option>
+                                <option value="year" {% if view_type == 'year' %}selected{% endif %}>年视图</option>
+                            </select>
+                            <button class="btn btn-primary" onclick="updateStats()">更新</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">类别时间分布</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="categoryPieChart"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-4">
+            <div class="card h-100">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">每日时间使用趋势</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="dailyLineChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">类别时间趋势</h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="categoryStackedChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="card-title mb-0">详细记录</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>日期</th>
+                                    <th>活动</th>
+                                    <th>类别</th>
+                                    <th>开始时间</th>
+                                    <th>结束时间</th>
+                                    <th>持续时间</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for entry in entries %}
+                                <tr>
+                                    <td>{{ entry.start_time.strftime('%Y-%m-%d') }}</td>
+                                    <td>
+                                        <span data-bs-toggle="tooltip" 
+                                              data-bs-placement="top" 
+                                              title="{{ entry.description if entry.description else '无描述' }}">
+                                            {{ entry.activity }}
+                                        </span>
+                                    </td>
+                                    <td>{{ entry.category }}</td>
+                                    <td>{{ entry.start_time.strftime('%H:%M') }}</td>
+                                    <td>{{ entry.end_time.strftime('%H:%M') }}</td>
+                                    <td>{{ ((entry.end_time - entry.start_time).total_seconds() / 3600)|round(1) }} 小时</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 引入Chart.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+// 初始化所有的 tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function(tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+
+// 更新统计数据
+function updateStats() {
+    const date = document.getElementById('date-picker').value;
+    const viewType = document.getElementById('view-type').value;
+    window.location.href = `/statistics?date=${date}&view_type=${viewType}`;
+}
+
+// 准备图表数据
+let dates = {{ dates|tojson }};
+let dailyTotalHours = {{ daily_total_hours|tojson }};
+let categoryStats = {{ category_stats|tojson }};
+let categoryTimeSeries = {{ category_time_series|tojson }};
+let allCategories = {{ all_categories|tojson }};
+
+// 生成随机颜色
+function generateColors(count) {
+    const colors = [];
+    for (let i = 0; i < count; i++) {
+        const hue = (i * 360 / count) % 360;
+        colors.push(`hsl(${hue}, 70%, 60%)`);
+    }
+    return colors;
+}
+
+// 绘制饼图
+const pieCtx = document.getElementById('categoryPieChart').getContext('2d');
+const categoryColors = generateColors(allCategories.length);
+new Chart(pieCtx, {
+    type: 'pie',
+    data: {
+        labels: allCategories,
+        datasets: [{
+            data: allCategories.map(category => categoryStats[category]),
+            backgroundColor: categoryColors
+        }]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                position: 'right'
+            }
+        }
+    }
+});
+
+// 绘制每日时间使用趋势图
+const lineCtx = document.getElementById('dailyLineChart').getContext('2d');
+new Chart(lineCtx, {
+    type: 'line',
+    data: {
+        labels: dates,
+        datasets: [{
+            label: '总时间（小时）',
+            data: dailyTotalHours,
+            borderColor: 'rgb(75, 192, 192)',
+            tension: 0.1,
+            fill: false
+        }]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: '小时'
+                }
+            }
+        }
+    }
+});
+
+// 绘制堆叠面积图
+const stackedCtx = document.getElementById('categoryStackedChart').getContext('2d');
+new Chart(stackedCtx, {
+    type: 'line',
+    data: {
+        labels: dates,
+        datasets: allCategories.map((category, index) => ({
+            label: category,
+            data: categoryTimeSeries[category],
+            backgroundColor: categoryColors[index] + '40',
+            borderColor: categoryColors[index],
+            fill: true
+        }))
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                stacked: true,
+                beginAtZero: true,
+                title: {
+                    display: true,
+                    text: '小时'
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                position: 'right'
+            }
+        }
+    }
+});
+</script>
+{% endblock %} 

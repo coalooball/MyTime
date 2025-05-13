@@ -1,0 +1,241 @@
+{% extends "base.html" %}
+
+{% block title %}时间记录{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>时间记录</h2>
+    
+    <!-- 实时记录模式 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>实时记录</h4>
+        </div>
+        <div class="card-body">
+            <div id="current-activity" class="mb-3" style="display: none;">
+                <div class="alert alert-info">
+                    <h5>当前活动</h5>
+                    <p>活动：<span id="current-activity-name"></span></p>
+                    <p>类别：<span id="current-activity-category"></span></p>
+                    <p>开始时间：<span id="current-activity-start"></span></p>
+                    <p>持续时间：<span id="current-activity-duration"></span></p>
+                    <button class="btn btn-danger" onclick="endActivity()">结束活动</button>
+                </div>
+            </div>
+            
+            <form id="realtime-form" onsubmit="startActivity(event)">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="realtime-activity">活动名称</label>
+                            <input type="text" class="form-control" id="realtime-activity" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="realtime-category">类别</label>
+                            <select class="form-control" id="realtime-category" required>
+                                <option value="">请选择类别</option>
+                                <option value="工作">工作</option>
+                                <option value="学习">学习</option>
+                                <option value="运动">运动</option>
+                                <option value="休息">休息</option>
+                                <option value="娱乐">娱乐</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="realtime-description">描述（可选）</label>
+                            <input type="text" class="form-control" id="realtime-description">
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary" id="start-button">开始记录</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 手动记录模式 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h4>手动记录</h4>
+        </div>
+        <div class="card-body">
+            <form method="POST">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="activity">活动名称</label>
+                            <input type="text" class="form-control" id="activity" name="activity" required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="category">类别</label>
+                            <select class="form-control" id="category" name="category" required>
+                                <option value="">请选择类别</option>
+                                <option value="工作">工作</option>
+                                <option value="学习">学习</option>
+                                <option value="运动">运动</option>
+                                <option value="休息">休息</option>
+                                <option value="娱乐">娱乐</option>
+                                <option value="其他">其他</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label for="description">描述（可选）</label>
+                            <input type="text" class="form-control" id="description" name="description">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="start_time">开始时间</label>
+                            <input type="datetime-local" class="form-control" id="start_time" name="start_time" 
+                                   value="{{ now.strftime('%Y-%m-%dT%H:%M') }}" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="end_time">结束时间</label>
+                            <input type="datetime-local" class="form-control" id="end_time" name="end_time" 
+                                   value="{{ next_hour.strftime('%Y-%m-%dT%H:%M') }}" required>
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary">保存记录</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- 今日记录 -->
+    <div class="card">
+        <div class="card-header">
+            <h4>今日记录</h4>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>活动</th>
+                            <th>类别</th>
+                            <th>开始时间</th>
+                            <th>结束时间</th>
+                            <th>持续时间</th>
+                            <th>描述</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for entry in entries %}
+                        <tr>
+                            <td>{{ entry.activity }}</td>
+                            <td>{{ entry.category }}</td>
+                            <td>{{ entry.start_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ entry.end_time.strftime('%Y-%m-%d %H:%M') }}</td>
+                            <td>{{ (entry.end_time - entry.start_time).total_seconds() / 3600|round(1) }} 小时</td>
+                            <td>{{ entry.description }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{{ url_for('edit_entry', entry_id=entry.id) }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-edit"></i> 编辑
+                                    </a>
+                                    <form action="{{ url_for('delete_entry', entry_id=entry.id) }}" method="POST" style="display: inline;">
+                                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('确定要删除这条记录吗？')">
+                                            <i class="fas fa-trash"></i> 删除
+                                        </button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let durationTimer = null;
+
+function updateDuration() {
+    fetch('/get_current_activity')
+        .then(response => response.json())
+        .then(data => {
+            if (data.activity) {
+                document.getElementById('current-activity').style.display = 'block';
+                document.getElementById('current-activity-name').textContent = data.activity;
+                document.getElementById('current-activity-category').textContent = data.category;
+                document.getElementById('current-activity-start').textContent = data.start_time;
+                document.getElementById('current-activity-duration').textContent = data.duration;
+                document.getElementById('start-button').disabled = true;
+            } else {
+                document.getElementById('current-activity').style.display = 'none';
+                document.getElementById('start-button').disabled = false;
+                clearInterval(durationTimer);
+            }
+        });
+}
+
+function startActivity(event) {
+    event.preventDefault();
+    const activity = document.getElementById('realtime-activity').value;
+    const category = document.getElementById('realtime-category').value;
+    const description = document.getElementById('realtime-description').value;
+
+    fetch('/start_activity', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            activity: activity,
+            category: category,
+            description: description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('realtime-form').reset();
+            updateDuration();
+            durationTimer = setInterval(updateDuration, 1000);
+        } else {
+            alert('开始活动失败：' + data.message);
+        }
+    });
+}
+
+function endActivity() {
+    fetch('/end_activity', {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.status === 'success') {
+            document.getElementById('current-activity').style.display = 'none';
+            document.getElementById('start-button').disabled = false;
+            clearInterval(durationTimer);
+            location.reload();  // 刷新页面以显示新记录
+        } else {
+            alert('结束活动失败：' + data.message);
+        }
+    });
+}
+
+// 页面加载时检查是否有正在进行的活动
+document.addEventListener('DOMContentLoaded', function() {
+    updateDuration();
+    if (document.getElementById('current-activity').style.display !== 'none') {
+        durationTimer = setInterval(updateDuration, 1000);
+    }
+});
+</script>
+{% endblock %} 

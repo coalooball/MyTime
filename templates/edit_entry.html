@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}编辑时间记录{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="mb-0">编辑时间记录</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label for="activity" class="form-label">活动名称</label>
+                        <input type="text" class="form-control" id="activity" name="activity" value="{{ entry.activity }}" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="category" class="form-label">类别</label>
+                        <select class="form-select" id="category" name="category" required>
+                            <option value="">请选择类别</option>
+                            <option value="工作" {% if entry.category == '工作' %}selected{% endif %}>工作</option>
+                            <option value="学习" {% if entry.category == '学习' %}selected{% endif %}>学习</option>
+                            <option value="阅读" {% if entry.category == '阅读' %}selected{% endif %}>阅读</option>
+                            <option value="运动" {% if entry.category == '运动' %}selected{% endif %}>运动</option>
+                            <option value="休息" {% if entry.category == '休息' %}selected{% endif %}>休息</option>
+                            <option value="其他" {% if entry.category == '其他' %}selected{% endif %}>其他</option>
+                        </select>
+                    </div>
+
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="start_time" class="form-label">开始时间</label>
+                            <input type="datetime-local" class="form-control" id="start_time" name="start_time" 
+                                   value="{{ entry.start_time.strftime('%Y-%m-%dT%H:%M') }}" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="end_time" class="form-label">结束时间</label>
+                            <input type="datetime-local" class="form-control" id="end_time" name="end_time" 
+                                   value="{{ entry.end_time.strftime('%Y-%m-%dT%H:%M') }}" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="description" class="form-label">详细描述</label>
+                        <textarea class="form-control" id="description" name="description" rows="3">{{ entry.description }}</textarea>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary">保存修改</button>
+                        <a href="{{ url_for('time_entry') }}" class="btn btn-secondary">返回</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

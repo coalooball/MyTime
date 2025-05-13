@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}首页{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2 text-center">
+        <h1 class="display-4 mb-4">欢迎使用柳比歇夫时间记录</h1>
+        <p class="lead mb-4">通过精确记录时间，提高时间利用效率，实现自我管理</p>
+        
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card time-entry-card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">开始记录</h5>
+                        <p class="card-text">记录您的时间使用情况</p>
+                        <a href="{{ url_for('time_entry') }}" class="btn btn-primary">记录时间</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card time-entry-card mb-4">
+                    <div class="card-body">
+                        <h5 class="card-title">查看统计</h5>
+                        <p class="card-text">分析您的时间使用模式</p>
+                        <a href="{{ url_for('statistics') }}" class="btn btn-primary">查看统计</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 
