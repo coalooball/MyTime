@@ -5,12 +5,12 @@ use std::time::Duration;
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use iced::alignment;
 use iced::widget::{
-    button, column, container, horizontal_rule, horizontal_space, opaque, pick_list, row,
-    scrollable, stack, text, text_input, Column, Row,
+    button, column, container, horizontal_rule, horizontal_space, mouse_area, opaque, pick_list,
+    row, scrollable, stack, text, text_input, Column,
 };
 use iced::{
-    application, border, time, Border, Color, Element, Font, Length, Shadow, Subscription, Task,
-    Theme, Vector,
+    border, daemon, mouse, time, window, Border, Color, Element, Font, Length, Shadow, Size,
+    Subscription, Task, Theme, Vector,
 };
 use rusqlite::{params, Connection, OptionalExtension};
 use thiserror::Error;
@@ -22,13 +22,13 @@ use i18n::{category_label, category_value_from_label, tr, Language, TextKey, CAT
 const DB_FILE: &str = "time_tracker.db";
 
 fn main() -> iced::Result {
-    application("MyTime", MyTimeApp::update, MyTimeApp::view)
-        .theme(|_| Theme::Light)
+    daemon(MyTimeApp::title, MyTimeApp::update, MyTimeApp::view)
+        .theme(|_, _| Theme::Light)
         .font(include_bytes!("/System/Library/Fonts/PingFang.ttc").as_slice())
         .font(include_bytes!("/System/Library/Fonts/Hiragino Sans GB.ttc").as_slice())
         .default_font(Font::with_name("PingFang SC"))
         .subscription(MyTimeApp::subscription)
-        .run_with(|| (MyTimeApp::new(), Task::none()))
+        .run_with(MyTimeApp::new)
 }
 
 #[derive(Debug, Error)]
@@ -408,6 +408,9 @@ struct StatsData {
 
 #[derive(Clone, Debug)]
 enum Message {
+    MainWindowOpened(window::Id),
+    EditWindowOpened(window::Id),
+    WindowCloseRequested(window::Id),
     Tick,
     Refresh,
     ToggleLanguage,
@@ -428,7 +431,6 @@ enum Message {
     RecordsDateChanged(String),
     Today,
     EditEntry(i64),
-    DeleteEntry(i64),
     EditActivityChanged(String),
     EditCategoryChanged(String),
     EditDescriptionChanged(String),
@@ -437,6 +439,7 @@ enum Message {
     EditEndDateChanged(String),
     EditEndTimeChanged(String),
     SaveEdit,
+    DeleteEditingEntry,
     CancelEdit,
     StatsDateChanged(String),
     ChangeStatsView(StatsView),
@@ -451,6 +454,8 @@ enum MessageKind {
 
 struct MyTimeApp {
     repo: Result<Repository, String>,
+    main_window: Option<window::Id>,
+    edit_window: Option<window::Id>,
     language: Language,
     active_tab: MainTab,
     manual_form: EntryForm,
@@ -467,11 +472,18 @@ struct MyTimeApp {
 }
 
 impl MyTimeApp {
-    fn new() -> Self {
+    fn new() -> (Self, Task<Message>) {
         let repo = Repository::open().map_err(|err| err.to_string());
         let today = Local::now().date_naive().format("%Y-%m-%d").to_string();
+        let (main_window, open_main_window) = window::open(window::Settings {
+            position: window::Position::Centered,
+            exit_on_close_request: false,
+            ..window::Settings::default()
+        });
         let mut app = Self {
             repo,
+            main_window: Some(main_window),
+            edit_window: None,
             language: Language::Chinese,
             active_tab: MainTab::Records,
             manual_form: EntryForm::new_default(),
@@ -487,19 +499,47 @@ impl MyTimeApp {
             message: None,
         };
         app.refresh_all();
-        app
+        (app, open_main_window.map(Message::MainWindowOpened))
+    }
+
+    fn title(&self, window_id: window::Id) -> String {
+        if self.edit_window == Some(window_id) {
+            tr(self.language, TextKey::EditEntry).to_string()
+        } else {
+            "MyTime".to_string()
+        }
     }
 
     fn subscription(&self) -> Subscription<Message> {
+        let mut subscriptions = vec![window::close_requests().map(Message::WindowCloseRequested)];
+
         if self.current_activity.is_some() {
-            time::every(Duration::from_secs(1)).map(|_| Message::Tick)
-        } else {
-            Subscription::none()
+            subscriptions.push(time::every(Duration::from_secs(1)).map(|_| Message::Tick));
         }
+
+        Subscription::batch(subscriptions)
     }
 
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::MainWindowOpened(id) => self.main_window = Some(id),
+            Message::EditWindowOpened(id) => {
+                self.edit_window = Some(id);
+                return window::gain_focus(id);
+            }
+            Message::WindowCloseRequested(id) => {
+                if self.edit_window == Some(id) {
+                    self.editing_form = None;
+                    self.edit_window = None;
+                    return window::close(id);
+                }
+
+                if self.main_window == Some(id) {
+                    return iced::exit();
+                }
+
+                return window::close(id);
+            }
             Message::Tick => {}
             Message::Refresh => self.refresh_all(),
             Message::ToggleLanguage => self.language = self.language.toggled(),
@@ -567,10 +607,8 @@ impl MyTimeApp {
                     .find(|entry| entry.id == id)
                 {
                     self.editing_form = Some(EntryForm::from_entry(entry));
+                    return self.open_edit_window();
                 }
-            }
-            Message::DeleteEntry(id) => {
-                self.with_repo(|repo| repo.delete_entry(id), TextKey::EntryDeleted);
             }
             Message::EditActivityChanged(value) => {
                 if let Some(form) = &mut self.editing_form {
@@ -608,19 +646,27 @@ impl MyTimeApp {
                 }
             }
             Message::SaveEdit => {
-                if let Some(form) = &self.editing_form {
+                if let Some(form) = self.editing_form.clone() {
                     match form.to_entry() {
                         Ok(entry) => {
                             self.with_repo(|repo| repo.update_entry(&entry), TextKey::EntryUpdated);
                             if self.is_info_message() {
-                                self.editing_form = None;
+                                return self.close_edit_window();
                             }
                         }
                         Err(err) => self.set_error(err.to_string()),
                     }
                 }
             }
-            Message::CancelEdit => self.editing_form = None,
+            Message::DeleteEditingEntry => {
+                if let Some(id) = self.editing_form.as_ref().and_then(|form| form.id) {
+                    self.with_repo(|repo| repo.delete_entry(id), TextKey::EntryDeleted);
+                    if self.is_info_message() {
+                        return self.close_edit_window();
+                    }
+                }
+            }
+            Message::CancelEdit => return self.close_edit_window(),
             Message::StatsDateChanged(value) => {
                 self.stats_date = value;
                 self.refresh_stats();
@@ -634,7 +680,15 @@ impl MyTimeApp {
         Task::none()
     }
 
-    fn view(&self) -> Element<'_, Message> {
+    fn view(&self, window_id: window::Id) -> Element<'_, Message> {
+        if self.edit_window == Some(window_id) {
+            return self.edit_window_view();
+        }
+
+        self.main_window_view()
+    }
+
+    fn main_window_view(&self) -> Element<'_, Message> {
         let mut page = column![self.top_bar()].spacing(12).padding(16);
 
         if let Some(message) = self.info_message_view() {
@@ -655,6 +709,64 @@ impl MyTimeApp {
             .width(Length::Fill)
             .height(Length::Fill)
             .into();
+
+        if let Some(dialog) = self.error_dialog_view() {
+            stack![base, dialog]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into()
+        } else {
+            base
+        }
+    }
+
+    fn edit_window_view(&self) -> Element<'_, Message> {
+        let base: Element<_> = if let Some(form) = &self.editing_form {
+            container(
+                column![
+                    text(tr(self.language, TextKey::EditEntry)).size(24),
+                    horizontal_rule(1),
+                    entry_form_view(
+                        self.language,
+                        form,
+                        EntryFormMessages {
+                            activity: Message::EditActivityChanged,
+                            category: Message::EditCategoryChanged,
+                            description: Message::EditDescriptionChanged,
+                            start_date: Message::EditStartDateChanged,
+                            start_time: Message::EditStartTimeChanged,
+                            end_date: Message::EditEndDateChanged,
+                            end_time: Message::EditEndTimeChanged,
+                        },
+                    ),
+                    row![
+                        button(tr(self.language, TextKey::SaveChanges)).on_press(Message::SaveEdit),
+                        button(tr(self.language, TextKey::Delete))
+                            .on_press(Message::DeleteEditingEntry)
+                            .style(iced::widget::button::danger),
+                        button(tr(self.language, TextKey::Cancel)).on_press(Message::CancelEdit),
+                    ]
+                    .spacing(8),
+                ]
+                .spacing(12),
+            )
+            .padding(16)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+        } else {
+            container(
+                column![
+                    text(tr(self.language, TextKey::NoData)).width(Length::Fill),
+                    button(tr(self.language, TextKey::Close)).on_press(Message::CancelEdit),
+                ]
+                .spacing(12),
+            )
+            .padding(16)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
+        };
 
         if let Some(dialog) = self.error_dialog_view() {
             stack![base, dialog]
@@ -750,8 +862,7 @@ impl MyTimeApp {
             .spacing(8)
             .align_y(alignment::Vertical::Center),
             self.entries_panel(TextKey::TodayEntries, &self.today_entries, true),
-            self.entries_panel(TextKey::RecentEntries, &self.recent_entries, false),
-            self.edit_panel(),
+            self.entries_panel(TextKey::RecentEntries, &self.recent_entries, true),
         ]
         .spacing(12)
         .width(Length::Fill);
@@ -851,36 +962,6 @@ impl MyTimeApp {
             tr(self.language, title),
             scrollable(table).height(Length::Fixed(230.0)),
         )
-    }
-
-    fn edit_panel(&self) -> Element<'_, Message> {
-        if let Some(form) = &self.editing_form {
-            panel(
-                tr(self.language, TextKey::EditEntry),
-                entry_form_view(
-                    self.language,
-                    form,
-                    EntryFormMessages {
-                        activity: Message::EditActivityChanged,
-                        category: Message::EditCategoryChanged,
-                        description: Message::EditDescriptionChanged,
-                        start_date: Message::EditStartDateChanged,
-                        start_time: Message::EditStartTimeChanged,
-                        end_date: Message::EditEndDateChanged,
-                        end_time: Message::EditEndTimeChanged,
-                    },
-                )
-                .push(
-                    row![
-                        button(tr(self.language, TextKey::SaveChanges)).on_press(Message::SaveEdit),
-                        button(tr(self.language, TextKey::Cancel)).on_press(Message::CancelEdit),
-                    ]
-                    .spacing(8),
-                ),
-            )
-        } else {
-            container(column![]).into()
-        }
     }
 
     fn statistics_view(&self) -> Element<'_, Message> {
@@ -1019,6 +1100,34 @@ impl MyTimeApp {
                 Err(err) => self.set_error(error_message(self.language, &err)),
             },
             Err(err) => self.set_error(err.clone()),
+        }
+    }
+
+    fn open_edit_window(&mut self) -> Task<Message> {
+        if let Some(id) = self.edit_window {
+            return window::gain_focus(id);
+        }
+
+        let (id, open) = window::open(window::Settings {
+            size: Size::new(460.0, 420.0),
+            min_size: Some(Size::new(420.0, 360.0)),
+            position: window::Position::Centered,
+            exit_on_close_request: false,
+            level: window::Level::AlwaysOnTop,
+            ..window::Settings::default()
+        });
+        self.edit_window = Some(id);
+
+        open.map(Message::EditWindowOpened)
+    }
+
+    fn close_edit_window(&mut self) -> Task<Message> {
+        self.editing_form = None;
+
+        if let Some(id) = self.edit_window.take() {
+            window::close(id)
+        } else {
+            Task::none()
         }
     }
 
@@ -1175,7 +1284,7 @@ fn table_header(language: Language, editable: bool) -> Element<'static, Message>
     ]
     .spacing(8);
     if editable {
-        row = row.push(text(tr(language, TextKey::Actions)).width(Length::Fixed(90.0)));
+        row = row.push(text(tr(language, TextKey::Actions)).width(Length::Fixed(55.0)));
     }
     row.into()
 }
@@ -1193,18 +1302,17 @@ fn entry_row(language: Language, entry: &TimeEntry, editable: bool) -> Element<'
     .align_y(alignment::Vertical::Center);
 
     if editable {
-        row = row.push(
-            Row::new()
-                .push(button(tr(language, TextKey::Edit)).on_press(Message::EditEntry(entry.id)))
-                .push(
-                    button(tr(language, TextKey::Delete)).on_press(Message::DeleteEntry(entry.id)),
-                )
-                .spacing(4)
-                .width(Length::Fixed(120.0)),
-        );
+        row = row.push(text(tr(language, TextKey::Edit)).width(Length::Fixed(55.0)));
     }
 
-    row.into()
+    if editable {
+        mouse_area(container(row).padding([4, 0]).width(Length::Fill))
+            .on_press(Message::EditEntry(entry.id))
+            .interaction(mouse::Interaction::Pointer)
+            .into()
+    } else {
+        row.into()
+    }
 }
 
 fn stats_bars(language: Language, values: &BTreeMap<String, f64>) -> Element<'_, Message> {
