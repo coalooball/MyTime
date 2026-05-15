@@ -6,7 +6,7 @@ use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use iced::alignment;
 use iced::widget::{
     button, column, container, horizontal_rule, opaque, pick_list, row, scrollable, stack, text,
-    text_input, vertical_rule, Column, Row,
+    text_input, Column, Row,
 };
 use iced::{
     application, border, time, Border, Color, Element, Font, Length, Shadow, Subscription, Task,
@@ -641,7 +641,7 @@ impl MyTimeApp {
             page = page.push(message);
         }
 
-        let base = if let Err(err) = &self.repo {
+        let page: Element<_> = if let Err(err) = &self.repo {
             page.push(text(err.clone()).size(18)).into()
         } else {
             let body = match self.active_tab {
@@ -650,6 +650,11 @@ impl MyTimeApp {
             };
             page.push(body).into()
         };
+
+        let base = scrollable(page)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
 
         if let Some(dialog) = self.error_dialog_view() {
             stack![base, dialog]
@@ -749,10 +754,7 @@ impl MyTimeApp {
         .spacing(12)
         .width(Length::Fill);
 
-        row![left, vertical_rule(1), right]
-            .spacing(16)
-            .height(Length::Fill)
-            .into()
+        row![left, right].spacing(16).into()
     }
 
     fn realtime_panel(&self) -> Element<'_, Message> {
