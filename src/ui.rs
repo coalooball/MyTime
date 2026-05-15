@@ -1,7 +1,7 @@
 use iced::alignment;
 use iced::widget::{
     button, column, container, horizontal_rule, horizontal_space, mouse_area, opaque, pick_list,
-    row, scrollable, stack, text, text_input, Column,
+    row, scrollable, stack, text, text_input, tooltip, Column,
 };
 use iced::{border, mouse, Border, Color, Element, Length, Shadow, Theme, Vector};
 
@@ -605,9 +605,7 @@ fn entry_row(language: Language, entry: &TimeEntry, editable: bool) -> Element<'
         text(entry.start_time.date().format("%Y-%m-%d").to_string())
             .color(muted_color())
             .width(Length::Fixed(95.0)),
-        text(entry.activity.clone())
-            .color(title_color())
-            .width(Length::Fill),
+        activity_cell(&entry.activity),
         text(category_label(language, &entry.category))
             .color(primary_color())
             .width(Length::Fixed(70.0)),
@@ -643,6 +641,65 @@ fn entry_row(language: Language, entry: &TimeEntry, editable: bool) -> Element<'
             .width(Length::Fill)
             .style(table_row_style)
             .into()
+    }
+}
+
+fn activity_cell(activity: &str) -> Element<'_, Message> {
+    const MAX_ACTIVITY_WIDTH: usize = 18;
+
+    let display = truncate_with_ellipsis(activity, MAX_ACTIVITY_WIDTH);
+    let activity_text = text(display)
+        .color(title_color())
+        .wrapping(iced::widget::text::Wrapping::None)
+        .width(Length::Fill);
+
+    container(
+        tooltip(
+            container(activity_text).width(Length::Fill),
+            container(text(activity.to_string()).color(Color::WHITE))
+                .padding([8, 10])
+                .style(tooltip_style),
+            tooltip::Position::FollowCursor,
+        )
+        .gap(8)
+        .style(tooltip_style),
+    )
+    .width(Length::Fill)
+    .into()
+}
+
+fn truncate_with_ellipsis(value: &str, max_width: usize) -> String {
+    if display_width(value) <= max_width {
+        return value.to_string();
+    }
+
+    let target_width = max_width.saturating_sub(3);
+    let mut text = String::new();
+    let mut width = 0;
+
+    for character in value.chars() {
+        let character_width = character_display_width(character);
+        if width + character_width > target_width {
+            break;
+        }
+
+        text.push(character);
+        width += character_width;
+    }
+
+    text.push_str("...");
+    text
+}
+
+fn display_width(value: &str) -> usize {
+    value.chars().map(character_display_width).sum()
+}
+
+fn character_display_width(character: char) -> usize {
+    if character.is_ascii() {
+        1
+    } else {
+        2
     }
 }
 
@@ -810,6 +867,23 @@ fn info_message_style(_theme: &Theme) -> container::Style {
             color: Color::from_rgb8(167, 243, 208),
         },
         ..container::Style::default()
+    }
+}
+
+fn tooltip_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Color::from_rgb8(15, 23, 42).into()),
+        text_color: Some(Color::WHITE),
+        border: Border {
+            width: 1.0,
+            radius: border::radius(7),
+            color: Color::from_rgba8(15, 23, 42, 0.92),
+        },
+        shadow: Shadow {
+            color: Color::from_rgba8(15, 23, 42, 0.22),
+            offset: Vector::new(0.0, 4.0),
+            blur_radius: 14.0,
+        },
     }
 }
 
