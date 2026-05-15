@@ -1,0 +1,17 @@
+[package]
+name = "mytime"
+version = "0.1.0"
+edition = "2021"
+default-run = "mytime"
+
+[dependencies]
+chrono = { version = "0.4", features = ["clock"] }
+iced = { version = "0.13", features = ["tokio"] }
+rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
+thiserror = "1"
+
+[profile.release]
+strip = true
+lto = true
+codegen-units = 1
