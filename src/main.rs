@@ -5,8 +5,8 @@ use std::time::Duration;
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, Timelike};
 use iced::alignment;
 use iced::widget::{
-    button, column, container, horizontal_rule, opaque, pick_list, row, scrollable, stack, text,
-    text_input, Column, Row,
+    button, column, container, horizontal_rule, horizontal_space, opaque, pick_list, row,
+    scrollable, stack, text, text_input, Column, Row,
 };
 use iced::{
     application, border, time, Border, Color, Element, Font, Length, Shadow, Subscription, Task,
@@ -674,9 +674,11 @@ impl MyTimeApp {
             button(tr(self.language, TextKey::Statistics))
                 .on_press(Message::SwitchTab(MainTab::Statistics)),
             button(tr(self.language, TextKey::Refresh)).on_press(Message::Refresh),
+            horizontal_space(),
             button(tr(self.language, TextKey::LanguageSwitch)).on_press(Message::ToggleLanguage),
         ]
         .spacing(10)
+        .width(Length::Fill)
         .align_y(alignment::Vertical::Center)
         .into()
     }
