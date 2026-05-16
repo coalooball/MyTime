@@ -36,8 +36,8 @@ pub(crate) struct TimeEntry {
 }
 
 impl TimeEntry {
-    pub(crate) fn hours(&self) -> f64 {
-        (self.end_time - self.start_time).num_seconds() as f64 / 3600.0
+    pub(crate) fn minutes(&self) -> f64 {
+        (self.end_time - self.start_time).num_seconds() as f64 / 60.0
     }
 }
 
@@ -145,8 +145,8 @@ impl ActivityForm {
 #[derive(Clone, Debug)]
 pub(crate) struct StatsData {
     pub(crate) entries: Vec<TimeEntry>,
-    pub(crate) category_hours: BTreeMap<String, f64>,
-    pub(crate) period_hours: BTreeMap<String, f64>,
+    pub(crate) category_minutes: BTreeMap<String, f64>,
+    pub(crate) period_minutes: BTreeMap<String, f64>,
 }
 
 pub(crate) fn error_message(language: Language, error: &AppError) -> String {
@@ -249,10 +249,7 @@ pub(crate) fn format_datetime(time: NaiveDateTime) -> String {
     time.format("%Y-%m-%d %H:%M:%S").to_string()
 }
 
-pub(crate) fn format_duration(seconds: i64) -> String {
-    let seconds = seconds.max(0);
-    let hours = seconds / 3600;
-    let minutes = (seconds % 3600) / 60;
-    let seconds = seconds % 60;
-    format!("{hours:02}:{minutes:02}:{seconds:02}")
+pub(crate) fn format_duration_minutes(seconds: i64) -> String {
+    let minutes = seconds.max(0) as f64 / 60.0;
+    format!("{minutes:.1}")
 }

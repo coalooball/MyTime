@@ -339,11 +339,13 @@ impl MyTimeApp {
         let (start, end, group_by_month) = stats_range(date, self.stats_view);
         match repo.list_between(start, end) {
             Ok(entries) => {
-                let mut category_hours = BTreeMap::new();
-                let mut period_hours = BTreeMap::new();
+                let mut category_minutes = BTreeMap::new();
+                let mut period_minutes = BTreeMap::new();
 
                 for entry in &entries {
-                    *category_hours.entry(entry.category.clone()).or_insert(0.0) += entry.hours();
+                    *category_minutes
+                        .entry(entry.category.clone())
+                        .or_insert(0.0) += entry.minutes();
                     let key = if group_by_month {
                         format!(
                             "{}-{:02}",
@@ -353,13 +355,13 @@ impl MyTimeApp {
                     } else {
                         entry.start_time.date().format("%Y-%m-%d").to_string()
                     };
-                    *period_hours.entry(key).or_insert(0.0) += entry.hours();
+                    *period_minutes.entry(key).or_insert(0.0) += entry.minutes();
                 }
 
                 self.stats = Some(StatsData {
                     entries,
-                    category_hours,
-                    period_hours,
+                    category_minutes,
+                    period_minutes,
                 });
             }
             Err(err) => self.set_error(error_message(self.language, &err)),

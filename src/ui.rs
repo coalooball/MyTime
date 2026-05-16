@@ -7,7 +7,9 @@ use iced::{border, mouse, Border, Color, Element, Length, Shadow, Theme, Vector}
 
 use crate::app::{Message, MessageKind, MyTimeApp};
 use crate::i18n::{category_label, tr, Language, TextKey, CATEGORIES};
-use crate::model::{format_datetime, format_duration, EntryForm, MainTab, StatsView, TimeEntry};
+use crate::model::{
+    format_datetime, format_duration_minutes, EntryForm, MainTab, StatsView, TimeEntry,
+};
 
 pub(crate) fn main_window_view(app: &MyTimeApp) -> Element<'_, Message> {
     let mut page = column![top_bar(app)]
@@ -278,9 +280,10 @@ fn realtime_panel(app: &MyTimeApp) -> Element<'_, Message> {
                 format_datetime(current.start_time)
             )),
             text(format!(
-                "{}: {}",
+                "{}: {} {}",
                 tr(app.language, TextKey::Elapsed),
-                format_duration(elapsed.num_seconds())
+                format_duration_minutes(elapsed.num_seconds()),
+                tr(app.language, TextKey::Minutes)
             ))
             .size(26)
             .color(primary_color()),
@@ -415,11 +418,11 @@ fn statistics_view(app: &MyTimeApp) -> Element<'_, Message> {
         row![
             panel(
                 tr(app.language, TextKey::CategoryDistribution),
-                stats_bars(app.language, &stats.category_hours)
+                stats_bars(app.language, &stats.category_minutes)
             ),
             panel(
                 tr(app.language, TextKey::TimeTrend),
-                stats_bars(app.language, &stats.period_hours)
+                stats_bars(app.language, &stats.period_minutes)
             ),
         ]
         .spacing(14),
@@ -590,7 +593,7 @@ fn table_header(language: Language, editable: bool) -> Element<'static, Message>
         header_text(tr(language, TextKey::Category)).width(Length::Fixed(70.0)),
         header_text(tr(language, TextKey::Start)).width(Length::Fixed(55.0)),
         header_text(tr(language, TextKey::End)).width(Length::Fixed(55.0)),
-        header_text(tr(language, TextKey::Hours)).width(Length::Fixed(55.0)),
+        header_text(tr(language, TextKey::Minutes)).width(Length::Fixed(55.0)),
     ]
     .spacing(8)
     .padding([0, 10]);
@@ -615,7 +618,7 @@ fn entry_row(language: Language, entry: &TimeEntry, editable: bool) -> Element<'
         text(entry.end_time.format("%H:%M").to_string())
             .color(muted_color())
             .width(Length::Fixed(55.0)),
-        text(format!("{:.1}", entry.hours()))
+        text(format!("{:.1}", entry.minutes()))
             .color(title_color())
             .width(Length::Fixed(55.0)),
     ]
@@ -715,8 +718,8 @@ fn stats_bars(
     let total: f64 = values.values().sum();
     let mut list = column!().spacing(6);
 
-    for (name, hours) in values {
-        let width = ((*hours / max) * 240.0).max(6.0) as f32;
+    for (name, minutes) in values {
+        let width = ((*minutes / max) * 240.0).max(6.0) as f32;
         list = list.push(
             row![
                 text(category_label(language, name))
@@ -726,7 +729,7 @@ fn stats_bars(
                     .width(Length::Fixed(width))
                     .height(Length::Fixed(12.0))
                     .style(bar_style),
-                text(format!("{hours:.1}h"))
+                text(format!("{minutes:.1}m"))
                     .color(muted_color())
                     .width(Length::Fixed(70.0)),
             ]
@@ -739,7 +742,7 @@ fn stats_bars(
         text(format!(
             "{} {total:.1} {}",
             tr(language, TextKey::Total),
-            tr(language, TextKey::Hours)
+            tr(language, TextKey::Minutes)
         ))
         .color(title_color()),
     )
