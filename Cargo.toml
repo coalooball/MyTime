@@ -6,7 +6,7 @@ default-run = "mytime"
 
 [dependencies]
 chrono = { version = "0.4", features = ["clock"] }
-iced = { version = "0.13", features = ["tokio"] }
+iced = { version = "0.14", features = ["tokio"] }
 rand = "0.8"
 rusqlite = { version = "0.32", features = ["bundled", "chrono"] }
 thiserror = "1"

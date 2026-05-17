@@ -1,7 +1,7 @@
 use iced::alignment;
 use iced::widget::{
-    button, column, container, horizontal_rule, horizontal_space, mouse_area, opaque, pick_list,
-    row, scrollable, stack, text, text_input, tooltip, Column,
+    button, column, container, mouse_area, opaque, pick_list, row, rule, scrollable, space, stack,
+    text, text_input, tooltip, Column,
 };
 use iced::{border, mouse, Border, Color, Element, Length, Shadow, Theme, Vector};
 
@@ -58,7 +58,7 @@ pub(crate) fn edit_window_view(app: &MyTimeApp) -> Element<'_, Message> {
             text(tr(app.language, TextKey::EditEntry))
                 .size(24)
                 .color(title_color()),
-            horizontal_rule(1),
+            rule::horizontal(1),
             entry_form_view(
                 app.language,
                 form,
@@ -147,7 +147,7 @@ fn top_bar(app: &MyTimeApp) -> Element<'_, Message> {
             records,
             statistics,
             secondary_button(tr(app.language, TextKey::Refresh), Message::Refresh),
-            horizontal_space(),
+            space::horizontal(),
             secondary_button(
                 tr(app.language, TextKey::LanguageSwitch),
                 Message::ToggleLanguage
@@ -196,7 +196,7 @@ fn error_dialog_view(app: &MyTimeApp) -> Option<Element<'_, Message>> {
             text(tr(app.language, TextKey::Error))
                 .size(24)
                 .color(danger_color()),
-            horizontal_rule(1),
+            rule::horizontal(1),
             text(message.clone()).width(Length::Fill),
             row![secondary_button(
                 tr(app.language, TextKey::Close),
@@ -298,7 +298,7 @@ fn realtime_panel(app: &MyTimeApp) -> Element<'_, Message> {
         tr(app.language, TextKey::RealtimeTracking),
         column![
             current,
-            horizontal_rule(1),
+            rule::horizontal(1),
             labeled_input(
                 tr(app.language, TextKey::ActivityName),
                 &app.realtime_form.activity,
@@ -549,7 +549,7 @@ fn panel<'a>(
     container(
         column![
             text(title).size(19).color(title_color()),
-            horizontal_rule(1),
+            rule::horizontal(1),
             content.into()
         ]
         .spacing(10),
@@ -583,6 +583,7 @@ fn dialog_style(theme: &Theme) -> container::Style {
             offset: Vector::new(0.0, 8.0),
             blur_radius: 24.0,
         },
+        ..container::Style::default()
     }
 }
 
@@ -831,6 +832,7 @@ fn panel_style(_theme: &Theme) -> container::Style {
             color: border_color(),
         },
         shadow: soft_shadow(),
+        ..container::Style::default()
     }
 }
 
@@ -887,6 +889,7 @@ fn tooltip_style(_theme: &Theme) -> container::Style {
             offset: Vector::new(0.0, 4.0),
             blur_radius: 14.0,
         },
+        ..container::Style::default()
     }
 }
 
@@ -907,7 +910,7 @@ fn text_input_style(
     status: iced::widget::text_input::Status,
 ) -> iced::widget::text_input::Style {
     let border_color = match status {
-        iced::widget::text_input::Status::Focused => primary_color(),
+        iced::widget::text_input::Status::Focused { .. } => primary_color(),
         iced::widget::text_input::Status::Hovered => Color::from_rgb8(148, 163, 184),
         iced::widget::text_input::Status::Active => border_color(),
         iced::widget::text_input::Status::Disabled => Color::from_rgb8(226, 232, 240),
@@ -933,9 +936,8 @@ fn pick_list_style(
 ) -> iced::widget::pick_list::Style {
     let border_color = match status {
         iced::widget::pick_list::Status::Active => border_color(),
-        iced::widget::pick_list::Status::Hovered | iced::widget::pick_list::Status::Opened => {
-            primary_color()
-        }
+        iced::widget::pick_list::Status::Hovered
+        | iced::widget::pick_list::Status::Opened { .. } => primary_color(),
     };
 
     iced::widget::pick_list::Style {
@@ -971,6 +973,7 @@ fn primary_button_style(
             color: background,
         },
         shadow: button_shadow(status),
+        ..iced::widget::button::Style::default()
     }
 }
 
@@ -998,6 +1001,7 @@ fn secondary_button_style(
             color: border_color(),
         },
         shadow: Shadow::default(),
+        ..iced::widget::button::Style::default()
     }
 }
 
@@ -1021,6 +1025,7 @@ fn danger_button_style(
             color: background,
         },
         shadow: button_shadow(status),
+        ..iced::widget::button::Style::default()
     }
 }
 
@@ -1032,10 +1037,11 @@ fn scrollbar_style(
     let active_hover = scroll_rail(primary_color());
 
     let rail = match status {
-        iced::widget::scrollable::Status::Active => active,
+        iced::widget::scrollable::Status::Active { .. } => active,
         iced::widget::scrollable::Status::Hovered {
             is_vertical_scrollbar_hovered,
             is_horizontal_scrollbar_hovered,
+            ..
         } => {
             if is_vertical_scrollbar_hovered || is_horizontal_scrollbar_hovered {
                 active_hover
@@ -1051,6 +1057,7 @@ fn scrollbar_style(
         vertical_rail: rail,
         horizontal_rail: rail,
         gap: None,
+        auto_scroll: scrollable_auto_scroll(),
     }
 }
 
@@ -1063,13 +1070,26 @@ fn scroll_rail(color: Color) -> iced::widget::scrollable::Rail {
             color: Color::TRANSPARENT,
         },
         scroller: iced::widget::scrollable::Scroller {
-            color,
+            background: color.into(),
             border: Border {
                 width: 0.0,
                 radius: border::radius(4),
                 color: Color::TRANSPARENT,
             },
         },
+    }
+}
+
+fn scrollable_auto_scroll() -> iced::widget::scrollable::AutoScroll {
+    iced::widget::scrollable::AutoScroll {
+        background: Color::from_rgba8(255, 255, 255, 0.92).into(),
+        border: Border {
+            width: 1.0,
+            radius: border::radius(u32::MAX),
+            color: Color::from_rgba8(100, 116, 139, 0.35),
+        },
+        shadow: Shadow::default(),
+        icon: muted_color(),
     }
 }
 
