@@ -15,6 +15,7 @@ impl Language {
 
 #[derive(Clone, Copy)]
 pub enum TextKey {
+    Timer,
     Records,
     Statistics,
     Refresh,
@@ -24,8 +25,6 @@ pub enum TextKey {
     Close,
     Date,
     Today,
-    TodayEntries,
-    RecentEntries,
     Activity,
     Category,
     Location,
@@ -36,6 +35,7 @@ pub enum TextKey {
     RealtimeTracking,
     ActivityName,
     Description,
+    AddEntry,
     StartTracking,
     ManualEntry,
     SaveEntry,
@@ -64,7 +64,6 @@ pub enum TextKey {
     ActivityEnded,
     EntryDeleted,
     EntryUpdated,
-    RefreshFailed,
     Week,
     Month,
     Year,
@@ -90,6 +89,7 @@ pub const CATEGORIES: [(&str, &str); 7] = [
 pub fn tr(language: Language, key: TextKey) -> &'static str {
     match language {
         Language::Chinese => match key {
+            TextKey::Timer => "计时",
             TextKey::Records => "记录",
             TextKey::Statistics => "统计",
             TextKey::Refresh => "刷新",
@@ -99,8 +99,6 @@ pub fn tr(language: Language, key: TextKey) -> &'static str {
             TextKey::Close => "关闭",
             TextKey::Date => "日期",
             TextKey::Today => "今天",
-            TextKey::TodayEntries => "当日记录",
-            TextKey::RecentEntries => "最近记录",
             TextKey::Activity => "活动",
             TextKey::Category => "类别",
             TextKey::Location => "地点",
@@ -111,6 +109,7 @@ pub fn tr(language: Language, key: TextKey) -> &'static str {
             TextKey::RealtimeTracking => "实时记录",
             TextKey::ActivityName => "活动名称",
             TextKey::Description => "描述",
+            TextKey::AddEntry => "添加记录",
             TextKey::StartTracking => "开始记录",
             TextKey::ManualEntry => "手动记录",
             TextKey::SaveEntry => "保存记录",
@@ -139,7 +138,6 @@ pub fn tr(language: Language, key: TextKey) -> &'static str {
             TextKey::ActivityEnded => "活动已结束",
             TextKey::EntryDeleted => "记录已删除",
             TextKey::EntryUpdated => "时间记录已更新",
-            TextKey::RefreshFailed => "刷新数据失败",
             TextKey::Week => "周",
             TextKey::Month => "月",
             TextKey::Year => "年",
@@ -152,6 +150,7 @@ pub fn tr(language: Language, key: TextKey) -> &'static str {
             TextKey::InvalidClockTime => "时间格式应为 HH:MM",
         },
         Language::English => match key {
+            TextKey::Timer => "Timer",
             TextKey::Records => "Records",
             TextKey::Statistics => "Statistics",
             TextKey::Refresh => "Refresh",
@@ -161,8 +160,6 @@ pub fn tr(language: Language, key: TextKey) -> &'static str {
             TextKey::Close => "Close",
             TextKey::Date => "Date",
             TextKey::Today => "Today",
-            TextKey::TodayEntries => "Today's Entries",
-            TextKey::RecentEntries => "Recent Entries",
             TextKey::Activity => "Activity",
             TextKey::Category => "Category",
             TextKey::Location => "Location",
@@ -173,6 +170,7 @@ pub fn tr(language: Language, key: TextKey) -> &'static str {
             TextKey::RealtimeTracking => "Realtime Tracking",
             TextKey::ActivityName => "Activity Name",
             TextKey::Description => "Description",
+            TextKey::AddEntry => "Add Entry",
             TextKey::StartTracking => "Start Tracking",
             TextKey::ManualEntry => "Manual Entry",
             TextKey::SaveEntry => "Save Entry",
@@ -201,7 +199,6 @@ pub fn tr(language: Language, key: TextKey) -> &'static str {
             TextKey::ActivityEnded => "Activity ended",
             TextKey::EntryDeleted => "Entry deleted",
             TextKey::EntryUpdated => "Time entry updated",
-            TextKey::RefreshFailed => "Failed to refresh data",
             TextKey::Week => "Week",
             TextKey::Month => "Month",
             TextKey::Year => "Year",

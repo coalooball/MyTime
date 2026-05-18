@@ -1,3 +1,7 @@
+mod records;
+mod statistics;
+mod timer;
+
 use iced::alignment;
 use iced::widget::{
     button, column, container, mouse_area, opaque, pick_list, row, rule, scrollable, space, stack,
@@ -7,9 +11,7 @@ use iced::{border, mouse, Border, Color, Element, Length, Shadow, Theme, Vector}
 
 use crate::app::{Message, MessageKind, MyTimeApp};
 use crate::i18n::{category_label, tr, Language, TextKey, CATEGORIES};
-use crate::model::{
-    format_datetime, format_duration_minutes, EntryForm, MainTab, StatsView, TimeEntry,
-};
+use crate::model::{EntryForm, MainTab, TimeEntry};
 
 pub(crate) fn main_window_view(app: &MyTimeApp) -> Element<'_, Message> {
     let mut page = column![top_bar(app)]
@@ -25,8 +27,9 @@ pub(crate) fn main_window_view(app: &MyTimeApp) -> Element<'_, Message> {
         page.push(text(err.clone()).size(18)).into()
     } else {
         let body = match app.active_tab {
-            MainTab::Records => records_view(app),
-            MainTab::Statistics => statistics_view(app),
+            MainTab::Timer => timer::view(app),
+            MainTab::Records => records::view(app),
+            MainTab::Statistics => statistics::view(app),
         };
         page.push(body).into()
     };
@@ -131,6 +134,11 @@ pub(crate) fn edit_window_view(app: &MyTimeApp) -> Element<'_, Message> {
 }
 
 fn top_bar(app: &MyTimeApp) -> Element<'_, Message> {
+    let timer = tab_button(
+        tr(app.language, TextKey::Timer),
+        app.active_tab == MainTab::Timer,
+        Message::SwitchTab(MainTab::Timer),
+    );
     let records = tab_button(
         tr(app.language, TextKey::Records),
         app.active_tab == MainTab::Records,
@@ -145,6 +153,7 @@ fn top_bar(app: &MyTimeApp) -> Element<'_, Message> {
     container(
         row![
             text("MyTime").size(30).color(title_color()),
+            timer,
             records,
             statistics,
             secondary_button(tr(app.language, TextKey::Refresh), Message::Refresh),
@@ -222,240 +231,18 @@ fn error_dialog_view(app: &MyTimeApp) -> Option<Element<'_, Message>> {
     )
 }
 
-fn records_view(app: &MyTimeApp) -> Element<'_, Message> {
-    let left = column![realtime_panel(app), manual_panel(app)]
-        .spacing(14)
-        .width(Length::Fixed(380.0));
-
-    let right = column![
-        toolbar(
-            row![
-                text(tr(app.language, TextKey::Date)).color(muted_color()),
-                styled_text_input("YYYY-MM-DD", &app.records_date, Message::RecordsDateChanged)
-                    .width(Length::Fixed(136.0)),
-                secondary_button(tr(app.language, TextKey::Today), Message::Today),
-            ]
-            .spacing(10)
-            .align_y(alignment::Vertical::Center),
-        ),
-        entries_panel(
-            app.language,
-            TextKey::TodayEntries,
-            &app.today_entries,
-            true
-        ),
-        entries_panel(
-            app.language,
-            TextKey::RecentEntries,
-            &app.recent_entries,
-            true
-        ),
-    ]
-    .spacing(14)
-    .width(Length::Fill);
-
-    row![left, right]
-        .spacing(18)
-        .width(Length::Fill)
-        .align_y(alignment::Vertical::Top)
-        .into()
+pub(super) struct EntryFormMessages {
+    pub(super) activity: fn(String) -> Message,
+    pub(super) category: fn(String) -> Message,
+    pub(super) location: fn(String) -> Message,
+    pub(super) description: fn(String) -> Message,
+    pub(super) start_date: fn(String) -> Message,
+    pub(super) start_time: fn(String) -> Message,
+    pub(super) end_date: fn(String) -> Message,
+    pub(super) end_time: fn(String) -> Message,
 }
 
-fn realtime_panel(app: &MyTimeApp) -> Element<'_, Message> {
-    let current = if let Some(current) = &app.current_activity {
-        let elapsed = chrono::Local::now().naive_local() - current.start_time;
-        column![
-            text(format!(
-                "{}: {}",
-                tr(app.language, TextKey::Activity),
-                current.activity
-            )),
-            text(format!(
-                "{}: {}",
-                tr(app.language, TextKey::Category),
-                category_label(app.language, &current.category)
-            )),
-            text(format!(
-                "{}: {}",
-                tr(app.language, TextKey::Start),
-                format_datetime(current.start_time)
-            )),
-            text(format!(
-                "{}: {} {}",
-                tr(app.language, TextKey::Elapsed),
-                format_duration_minutes(elapsed.num_seconds()),
-                tr(app.language, TextKey::Minutes)
-            ))
-            .size(26)
-            .color(primary_color()),
-            danger_button(tr(app.language, TextKey::EndActivity), Message::EndActivity),
-        ]
-        .spacing(8)
-    } else {
-        column![text(tr(app.language, TextKey::NoCurrentActivity)).color(muted_color())].spacing(8)
-    };
-
-    panel(
-        tr(app.language, TextKey::RealtimeTracking),
-        column![
-            current,
-            rule::horizontal(1),
-            labeled_input(
-                tr(app.language, TextKey::ActivityName),
-                &app.realtime_form.activity,
-                Message::RealtimeActivityChanged
-            ),
-            category_pick_list(
-                app.language,
-                app.realtime_form.category.clone(),
-                Message::RealtimeCategoryChanged
-            ),
-            labeled_input(
-                tr(app.language, TextKey::Location),
-                &app.realtime_form.location,
-                Message::RealtimeLocationChanged
-            ),
-            labeled_input(
-                tr(app.language, TextKey::Description),
-                &app.realtime_form.description,
-                Message::RealtimeDescriptionChanged
-            ),
-            primary_button(
-                tr(app.language, TextKey::StartTracking),
-                Message::StartActivity
-            ),
-        ]
-        .spacing(10),
-    )
-}
-
-fn manual_panel(app: &MyTimeApp) -> Element<'_, Message> {
-    panel(
-        tr(app.language, TextKey::ManualEntry),
-        entry_form_view(
-            app.language,
-            &app.manual_form,
-            EntryFormMessages {
-                activity: Message::ManualActivityChanged,
-                category: Message::ManualCategoryChanged,
-                location: Message::ManualLocationChanged,
-                description: Message::ManualDescriptionChanged,
-                start_date: Message::ManualStartDateChanged,
-                start_time: Message::ManualStartTimeChanged,
-                end_date: Message::ManualEndDateChanged,
-                end_time: Message::ManualEndTimeChanged,
-            },
-        )
-        .push(primary_button(
-            tr(app.language, TextKey::SaveEntry),
-            Message::SaveManualEntry,
-        )),
-    )
-}
-
-fn entries_panel<'a>(
-    language: Language,
-    title: TextKey,
-    entries: &'a [TimeEntry],
-    editable: bool,
-) -> Element<'a, Message> {
-    let mut table = column![table_header(language, editable)].spacing(6);
-    for entry in entries {
-        table = table.push(entry_row(language, entry, editable));
-    }
-    panel(
-        tr(language, title),
-        scrollable(table)
-            .style(scrollbar_style)
-            .height(Length::Fixed(238.0)),
-    )
-}
-
-fn statistics_view(app: &MyTimeApp) -> Element<'_, Message> {
-    let controls = toolbar(
-        row![
-            text(tr(app.language, TextKey::StatsDate)).color(muted_color()),
-            styled_text_input("YYYY-MM-DD", &app.stats_date, Message::StatsDateChanged)
-                .width(Length::Fixed(136.0)),
-            tab_button(
-                StatsView::Week.label(app.language),
-                app.stats_view == StatsView::Week,
-                Message::ChangeStatsView(StatsView::Week)
-            ),
-            tab_button(
-                StatsView::Month.label(app.language),
-                app.stats_view == StatsView::Month,
-                Message::ChangeStatsView(StatsView::Month)
-            ),
-            tab_button(
-                StatsView::Year.label(app.language),
-                app.stats_view == StatsView::Year,
-                Message::ChangeStatsView(StatsView::Year)
-            ),
-            text(format!(
-                "{}: {}",
-                tr(app.language, TextKey::Current),
-                app.stats_view.label(app.language)
-            ))
-            .color(muted_color()),
-        ]
-        .spacing(10)
-        .align_y(alignment::Vertical::Center),
-    );
-
-    let Some(stats) = &app.stats else {
-        return column![
-            controls,
-            container(text(tr(app.language, TextKey::NoStats)).color(muted_color()))
-                .padding(18)
-                .width(Length::Fill)
-                .style(panel_style)
-        ]
-        .spacing(14)
-        .into();
-    };
-
-    let mut detail_rows = column![table_header(app.language, false)].spacing(6);
-    for entry in &stats.entries {
-        detail_rows = detail_rows.push(entry_row(app.language, entry, false));
-    }
-
-    column![
-        controls,
-        row![
-            panel(
-                tr(app.language, TextKey::CategoryDistribution),
-                stats_bars(app.language, &stats.category_minutes)
-            ),
-            panel(
-                tr(app.language, TextKey::TimeTrend),
-                stats_bars(app.language, &stats.period_minutes)
-            ),
-        ]
-        .spacing(14),
-        panel(
-            tr(app.language, TextKey::Details),
-            scrollable(detail_rows)
-                .style(scrollbar_style)
-                .height(Length::Fixed(340.0))
-        ),
-    ]
-    .spacing(14)
-    .into()
-}
-
-struct EntryFormMessages {
-    activity: fn(String) -> Message,
-    category: fn(String) -> Message,
-    location: fn(String) -> Message,
-    description: fn(String) -> Message,
-    start_date: fn(String) -> Message,
-    start_time: fn(String) -> Message,
-    end_date: fn(String) -> Message,
-    end_time: fn(String) -> Message,
-}
-
-fn entry_form_view(
+pub(super) fn entry_form_view(
     language: Language,
     form: &EntryForm,
     messages: EntryFormMessages,
@@ -514,7 +301,7 @@ fn entry_form_view(
     .width(Length::Fill)
 }
 
-fn labeled_input<'a>(
+pub(super) fn labeled_input<'a>(
     label: &'static str,
     value: &'a str,
     on_input: fn(String) -> Message,
@@ -528,7 +315,7 @@ fn labeled_input<'a>(
     .into()
 }
 
-fn category_pick_list<'a>(
+pub(super) fn category_pick_list<'a>(
     language: Language,
     selected: String,
     on_select: fn(String) -> Message,
@@ -555,7 +342,7 @@ fn category_pick_list<'a>(
     .into()
 }
 
-fn panel<'a>(
+pub(super) fn panel<'a>(
     title: &'static str,
     content: impl Into<Element<'a, Message>>,
 ) -> Element<'a, Message> {
@@ -573,14 +360,14 @@ fn panel<'a>(
     .into()
 }
 
-fn dialog_backdrop_style(_theme: &Theme) -> container::Style {
+pub(super) fn dialog_backdrop_style(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Color::from_rgba8(0, 0, 0, 0.24).into()),
         ..container::Style::default()
     }
 }
 
-fn dialog_style(theme: &Theme) -> container::Style {
+pub(super) fn dialog_style(theme: &Theme) -> container::Style {
     let palette = theme.extended_palette();
 
     container::Style {
@@ -600,7 +387,7 @@ fn dialog_style(theme: &Theme) -> container::Style {
     }
 }
 
-fn table_header(language: Language, editable: bool) -> Element<'static, Message> {
+pub(super) fn table_header(language: Language, editable: bool) -> Element<'static, Message> {
     let mut row = row![
         header_text(tr(language, TextKey::Date)).width(Length::Fixed(95.0)),
         header_text(tr(language, TextKey::Activity)).width(Length::Fill),
@@ -617,7 +404,11 @@ fn table_header(language: Language, editable: bool) -> Element<'static, Message>
     row.into()
 }
 
-fn entry_row(language: Language, entry: &TimeEntry, editable: bool) -> Element<'_, Message> {
+pub(super) fn entry_row(
+    language: Language,
+    entry: &TimeEntry,
+    editable: bool,
+) -> Element<'_, Message> {
     let mut row = row![
         text(entry.start_time.date().format("%Y-%m-%d").to_string())
             .color(muted_color())
@@ -720,62 +511,7 @@ fn character_display_width(character: char) -> usize {
     }
 }
 
-fn stats_bars(
-    language: Language,
-    values: &std::collections::BTreeMap<String, f64>,
-) -> Element<'_, Message> {
-    if values.is_empty() {
-        return text(tr(language, TextKey::NoData)).into();
-    }
-
-    let max = values.values().copied().fold(0.0, f64::max).max(1.0);
-    let total: f64 = values.values().sum();
-    let mut list = column!().spacing(6);
-
-    for (name, minutes) in values {
-        let width = ((*minutes / max) * 240.0).max(6.0) as f32;
-        list = list.push(
-            row![
-                text(category_label(language, name))
-                    .color(title_color())
-                    .width(Length::Fixed(90.0)),
-                container(text(""))
-                    .width(Length::Fixed(width))
-                    .height(Length::Fixed(12.0))
-                    .style(bar_style),
-                text(format_minutes_hours(*minutes))
-                    .color(muted_color())
-                    .width(Length::Fixed(70.0)),
-            ]
-            .spacing(8)
-            .align_y(alignment::Vertical::Center),
-        );
-    }
-
-    list.push(
-        text(format!(
-            "{} {}",
-            tr(language, TextKey::Total),
-            format_minutes_hours(total)
-        ))
-        .color(title_color()),
-    )
-    .into()
-}
-
-fn format_minutes_hours(minutes: f64) -> String {
-    let total_minutes = minutes.round().max(0.0) as i64;
-    let hours = total_minutes / 60;
-    let minutes = total_minutes % 60;
-
-    if hours > 0 {
-        format!("{hours}h{minutes}m")
-    } else {
-        format!("{minutes}m")
-    }
-}
-
-fn styled_text_input<'a>(
+pub(super) fn styled_text_input<'a>(
     placeholder: &'static str,
     value: &'a str,
     on_input: fn(String) -> Message,
@@ -786,14 +522,17 @@ fn styled_text_input<'a>(
         .style(text_input_style)
 }
 
-fn primary_button<'a>(label: &'static str, message: Message) -> iced::widget::Button<'a, Message> {
+pub(super) fn primary_button<'a>(
+    label: &'static str,
+    message: Message,
+) -> iced::widget::Button<'a, Message> {
     button(text(label).size(14))
         .padding([8, 14])
         .style(primary_button_style)
         .on_press(message)
 }
 
-fn secondary_button<'a>(
+pub(super) fn secondary_button<'a>(
     label: &'static str,
     message: Message,
 ) -> iced::widget::Button<'a, Message> {
@@ -803,14 +542,17 @@ fn secondary_button<'a>(
         .on_press(message)
 }
 
-fn danger_button<'a>(label: &'static str, message: Message) -> iced::widget::Button<'a, Message> {
+pub(super) fn danger_button<'a>(
+    label: &'static str,
+    message: Message,
+) -> iced::widget::Button<'a, Message> {
     button(text(label).size(14))
         .padding([8, 14])
         .style(danger_button_style)
         .on_press(message)
 }
 
-fn tab_button(
+pub(super) fn tab_button(
     label: &'static str,
     selected: bool,
     message: Message,
@@ -827,7 +569,7 @@ fn tab_button(
         .on_press(message)
 }
 
-fn toolbar<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
+pub(super) fn toolbar<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> {
     container(content)
         .padding([10, 12])
         .width(Length::Fill)
@@ -847,7 +589,7 @@ fn page_style(_theme: &Theme) -> container::Style {
     }
 }
 
-fn panel_style(_theme: &Theme) -> container::Style {
+pub(super) fn panel_style(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(surface_color().into()),
         text_color: Some(text_color()),
@@ -918,7 +660,7 @@ fn tooltip_style(_theme: &Theme) -> container::Style {
     }
 }
 
-fn bar_style(_theme: &Theme) -> container::Style {
+pub(super) fn bar_style(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(primary_color().into()),
         border: Border {
@@ -1054,7 +796,7 @@ fn danger_button_style(
     }
 }
 
-fn scrollbar_style(
+pub(super) fn scrollbar_style(
     _theme: &Theme,
     status: iced::widget::scrollable::Status,
 ) -> iced::widget::scrollable::Style {
@@ -1157,15 +899,15 @@ fn text_color() -> Color {
     Color::from_rgb8(31, 41, 55)
 }
 
-fn title_color() -> Color {
+pub(super) fn title_color() -> Color {
     Color::from_rgb8(15, 23, 42)
 }
 
-fn muted_color() -> Color {
+pub(super) fn muted_color() -> Color {
     Color::from_rgb8(100, 116, 139)
 }
 
-fn primary_color() -> Color {
+pub(super) fn primary_color() -> Color {
     Color::from_rgb8(15, 118, 110)
 }
 

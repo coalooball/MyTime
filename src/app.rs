@@ -35,6 +35,8 @@ pub(crate) enum Message {
     ManualStartTimeChanged(String),
     ManualEndDateChanged(String),
     ManualEndTimeChanged(String),
+    OpenManualEntry,
+    CloseManualEntry,
     SaveManualEntry,
     RecordsDateChanged(String),
     Today,
@@ -68,13 +70,13 @@ pub(crate) struct MyTimeApp {
     pub(crate) language: Language,
     pub(crate) active_tab: MainTab,
     pub(crate) manual_form: EntryForm,
+    pub(crate) manual_entry_dialog_open: bool,
     pub(crate) realtime_form: ActivityForm,
     pub(crate) editing_form: Option<EntryForm>,
     pub(crate) records_date: String,
     pub(crate) stats_date: String,
     pub(crate) stats_view: StatsView,
     pub(crate) today_entries: Vec<TimeEntry>,
-    pub(crate) recent_entries: Vec<TimeEntry>,
     pub(crate) current_activity: Option<CurrentActivity>,
     pub(crate) stats: Option<StatsData>,
     pub(crate) message: Option<(String, MessageKind)>,
@@ -96,13 +98,13 @@ impl MyTimeApp {
             language: Language::Chinese,
             active_tab: MainTab::Records,
             manual_form: EntryForm::new_default(),
+            manual_entry_dialog_open: false,
             realtime_form: ActivityForm::new(),
             editing_form: None,
             records_date: today.clone(),
             stats_date: today,
             stats_view: StatsView::Week,
             today_entries: Vec::new(),
-            recent_entries: Vec::new(),
             current_activity: None,
             stats: None,
             message: None,
@@ -189,6 +191,14 @@ impl MyTimeApp {
             Message::ManualStartTimeChanged(value) => self.manual_form.start_time = value,
             Message::ManualEndDateChanged(value) => self.manual_form.end_date = value,
             Message::ManualEndTimeChanged(value) => self.manual_form.end_time = value,
+            Message::OpenManualEntry => {
+                self.manual_form = EntryForm::new_default();
+                self.manual_entry_dialog_open = true;
+            }
+            Message::CloseManualEntry => {
+                self.manual_entry_dialog_open = false;
+                self.manual_form = EntryForm::new_default();
+            }
             Message::SaveManualEntry => match self.manual_form.to_entry() {
                 Ok(entry) => {
                     self.with_repo(
@@ -205,6 +215,7 @@ impl MyTimeApp {
                         TextKey::EntrySaved,
                     );
                     if self.is_info_message() {
+                        self.manual_entry_dialog_open = false;
                         self.manual_form = EntryForm::new_default();
                     }
                 }
@@ -219,12 +230,7 @@ impl MyTimeApp {
                 self.refresh_records();
             }
             Message::EditEntry(id) => {
-                if let Some(entry) = self
-                    .today_entries
-                    .iter()
-                    .chain(self.recent_entries.iter())
-                    .find(|entry| entry.id == id)
-                {
+                if let Some(entry) = self.today_entries.iter().find(|entry| entry.id == id) {
                     self.editing_form = Some(EntryForm::from_entry(entry));
                     return self.open_edit_window();
                 }
@@ -313,8 +319,20 @@ impl MyTimeApp {
     }
 
     fn refresh_all(&mut self) {
+        self.refresh_current_activity();
         self.refresh_records();
         self.refresh_stats();
+    }
+
+    fn refresh_current_activity(&mut self) {
+        let Ok(repo) = &self.repo else {
+            return;
+        };
+
+        match repo.get_current_activity() {
+            Ok(current_activity) => self.current_activity = current_activity,
+            Err(err) => self.set_error(error_message(self.language, &err)),
+        }
     }
 
     fn refresh_records(&mut self) {
@@ -323,25 +341,9 @@ impl MyTimeApp {
         };
         if let Ok(repo) = &self.repo {
             let (start, end) = day_range(date);
-            match (
-                repo.list_between(start, end),
-                repo.list_all_recent(100),
-                repo.get_current_activity(),
-            ) {
-                (Ok(today_entries), Ok(recent_entries), Ok(current_activity)) => {
-                    self.today_entries = today_entries;
-                    self.recent_entries = recent_entries;
-                    self.current_activity = current_activity;
-                }
-                (today_result, recent_result, current_result) => {
-                    let error = today_result
-                        .err()
-                        .or_else(|| recent_result.err())
-                        .or_else(|| current_result.err())
-                        .map(|err| error_message(self.language, &err))
-                        .unwrap_or_else(|| tr(self.language, TextKey::RefreshFailed).to_string());
-                    self.set_error(error);
-                }
+            match repo.list_between(start, end) {
+                Ok(today_entries) => self.today_entries = today_entries,
+                Err(err) => self.set_error(error_message(self.language, &err)),
             }
         }
     }

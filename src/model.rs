@@ -53,6 +53,7 @@ pub(crate) struct CurrentActivity {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MainTab {
+    Timer,
     Records,
     Statistics,
 }

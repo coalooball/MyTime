@@ -90,22 +90,6 @@ impl Repository {
         Ok(entries)
     }
 
-    pub(crate) fn list_all_recent(&self, limit: usize) -> AppResult<Vec<TimeEntry>> {
-        let mut stmt = self.conn.prepare(
-            "
-            SELECT id, start_time, end_time, activity, category, COALESCE(location, ''), COALESCE(description, '')
-            FROM time_entry
-            ORDER BY start_time DESC
-            LIMIT ?1
-            ",
-        )?;
-
-        let entries = stmt
-            .query_map(params![limit as i64], row_to_entry)?
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(entries)
-    }
-
     pub(crate) fn insert_entry(
         &self,
         start_time: NaiveDateTime,
