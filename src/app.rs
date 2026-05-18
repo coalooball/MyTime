@@ -23,11 +23,13 @@ pub(crate) enum Message {
     SwitchTab(MainTab),
     RealtimeActivityChanged(String),
     RealtimeCategoryChanged(String),
+    RealtimeLocationChanged(String),
     RealtimeDescriptionChanged(String),
     StartActivity,
     EndActivity,
     ManualActivityChanged(String),
     ManualCategoryChanged(String),
+    ManualLocationChanged(String),
     ManualDescriptionChanged(String),
     ManualStartDateChanged(String),
     ManualStartTimeChanged(String),
@@ -39,6 +41,7 @@ pub(crate) enum Message {
     EditEntry(i64),
     EditActivityChanged(String),
     EditCategoryChanged(String),
+    EditLocationChanged(String),
     EditDescriptionChanged(String),
     EditStartDateChanged(String),
     EditStartTimeChanged(String),
@@ -154,11 +157,19 @@ impl MyTimeApp {
             Message::RealtimeCategoryChanged(value) => {
                 self.realtime_form.category = category_value_from_label(&value);
             }
+            Message::RealtimeLocationChanged(value) => self.realtime_form.location = value,
             Message::RealtimeDescriptionChanged(value) => self.realtime_form.description = value,
             Message::StartActivity => {
                 let form = self.realtime_form.clone();
                 self.with_repo(
-                    |repo| repo.start_activity(&form.activity, &form.category, &form.description),
+                    |repo| {
+                        repo.start_activity(
+                            &form.activity,
+                            &form.category,
+                            &form.location,
+                            &form.description,
+                        )
+                    },
                     TextKey::ActivityStarted,
                 );
                 if self.is_info_message() {
@@ -172,6 +183,7 @@ impl MyTimeApp {
             Message::ManualCategoryChanged(value) => {
                 self.manual_form.category = category_value_from_label(&value);
             }
+            Message::ManualLocationChanged(value) => self.manual_form.location = value,
             Message::ManualDescriptionChanged(value) => self.manual_form.description = value,
             Message::ManualStartDateChanged(value) => self.manual_form.start_date = value,
             Message::ManualStartTimeChanged(value) => self.manual_form.start_time = value,
@@ -186,6 +198,7 @@ impl MyTimeApp {
                                 entry.end_time,
                                 &entry.activity,
                                 &entry.category,
+                                &entry.location,
                                 &entry.description,
                             )
                         },
@@ -224,6 +237,11 @@ impl MyTimeApp {
             Message::EditCategoryChanged(value) => {
                 if let Some(form) = &mut self.editing_form {
                     form.category = category_value_from_label(&value);
+                }
+            }
+            Message::EditLocationChanged(value) => {
+                if let Some(form) = &mut self.editing_form {
+                    form.location = value;
                 }
             }
             Message::EditDescriptionChanged(value) => {

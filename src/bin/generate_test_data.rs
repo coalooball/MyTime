@@ -50,6 +50,8 @@ const ACTIVITY_GROUPS: &[ActivityGroup] = &[
     },
 ];
 
+const LOCATIONS: &[&str] = &["家", "办公室", "咖啡店", "图书馆", "健身房", "户外"];
+
 fn main() -> rusqlite::Result<()> {
     let mut days = 30_i64;
     let mut clear_existing = true;
@@ -96,10 +98,35 @@ fn init_db(conn: &Connection) -> rusqlite::Result<()> {
             end_time DATETIME NOT NULL,
             activity VARCHAR(200) NOT NULL,
             category VARCHAR(50) NOT NULL,
+            location TEXT NOT NULL DEFAULT '',
             description TEXT
         );
         ",
-    )
+    )?;
+    ensure_column(conn, "time_entry", "location", "TEXT NOT NULL DEFAULT ''")
+}
+
+fn ensure_column(
+    conn: &Connection,
+    table: &str,
+    column: &str,
+    definition: &str,
+) -> rusqlite::Result<()> {
+    let mut stmt = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+    let has_column = stmt
+        .query_map([], |row| row.get::<_, String>(1))?
+        .collect::<Result<Vec<_>, _>>()?
+        .iter()
+        .any(|name| name == column);
+
+    if !has_column {
+        conn.execute(
+            &format!("ALTER TABLE {table} ADD COLUMN {column} {definition}"),
+            [],
+        )?;
+    }
+
+    Ok(())
 }
 
 fn generate(conn: &Connection, days: i64) -> rusqlite::Result<usize> {
@@ -119,14 +146,15 @@ fn generate(conn: &Connection, days: i64) -> rusqlite::Result<usize> {
             let activity = group.activities.choose(&mut rng).expect("activities");
             let start_time = last_end + Duration::minutes(rng.gen_range(30..=120));
             let end_time = start_time + Duration::minutes(rng.gen_range(30..=180));
+            let location = LOCATIONS.choose(&mut rng).expect("locations");
             let description = format!("进行{}活动", activity);
 
             conn.execute(
                 "
-                INSERT INTO time_entry (start_time, end_time, activity, category, description)
-                VALUES (?1, ?2, ?3, ?4, ?5)
+                INSERT INTO time_entry (start_time, end_time, activity, category, location, description)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                 ",
-                params![start_time, end_time, activity, group.category, description],
+                params![start_time, end_time, activity, group.category, location, description],
             )?;
             total += 1;
             last_end = end_time;

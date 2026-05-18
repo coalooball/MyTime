@@ -65,6 +65,7 @@ pub(crate) fn edit_window_view(app: &MyTimeApp) -> Element<'_, Message> {
                 EntryFormMessages {
                     activity: Message::EditActivityChanged,
                     category: Message::EditCategoryChanged,
+                    location: Message::EditLocationChanged,
                     description: Message::EditDescriptionChanged,
                     start_date: Message::EditStartDateChanged,
                     start_time: Message::EditStartTimeChanged,
@@ -310,6 +311,11 @@ fn realtime_panel(app: &MyTimeApp) -> Element<'_, Message> {
                 Message::RealtimeCategoryChanged
             ),
             labeled_input(
+                tr(app.language, TextKey::Location),
+                &app.realtime_form.location,
+                Message::RealtimeLocationChanged
+            ),
+            labeled_input(
                 tr(app.language, TextKey::Description),
                 &app.realtime_form.description,
                 Message::RealtimeDescriptionChanged
@@ -332,6 +338,7 @@ fn manual_panel(app: &MyTimeApp) -> Element<'_, Message> {
             EntryFormMessages {
                 activity: Message::ManualActivityChanged,
                 category: Message::ManualCategoryChanged,
+                location: Message::ManualLocationChanged,
                 description: Message::ManualDescriptionChanged,
                 start_date: Message::ManualStartDateChanged,
                 start_time: Message::ManualStartTimeChanged,
@@ -440,6 +447,7 @@ fn statistics_view(app: &MyTimeApp) -> Element<'_, Message> {
 struct EntryFormMessages {
     activity: fn(String) -> Message,
     category: fn(String) -> Message,
+    location: fn(String) -> Message,
     description: fn(String) -> Message,
     start_date: fn(String) -> Message,
     start_time: fn(String) -> Message,
@@ -459,6 +467,11 @@ fn entry_form_view(
             messages.activity
         ),
         category_pick_list(language, form.category.clone(), messages.category),
+        labeled_input(
+            tr(language, TextKey::Location),
+            &form.location,
+            messages.location
+        ),
         row![
             container(labeled_input(
                 tr(language, TextKey::StartDate),
@@ -730,7 +743,7 @@ fn stats_bars(
                     .width(Length::Fixed(width))
                     .height(Length::Fixed(12.0))
                     .style(bar_style),
-                text(format!("{minutes:.1}m"))
+                text(format_minutes_hours(*minutes))
                     .color(muted_color())
                     .width(Length::Fixed(70.0)),
             ]
@@ -741,13 +754,25 @@ fn stats_bars(
 
     list.push(
         text(format!(
-            "{} {total:.1} {}",
+            "{} {}",
             tr(language, TextKey::Total),
-            tr(language, TextKey::Minutes)
+            format_minutes_hours(total)
         ))
         .color(title_color()),
     )
     .into()
+}
+
+fn format_minutes_hours(minutes: f64) -> String {
+    let total_minutes = minutes.round().max(0.0) as i64;
+    let hours = total_minutes / 60;
+    let minutes = total_minutes % 60;
+
+    if hours > 0 {
+        format!("{hours}h{minutes}m")
+    } else {
+        format!("{minutes}m")
+    }
 }
 
 fn styled_text_input<'a>(

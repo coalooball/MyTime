@@ -32,6 +32,7 @@ pub(crate) struct TimeEntry {
     pub(crate) end_time: NaiveDateTime,
     pub(crate) activity: String,
     pub(crate) category: String,
+    pub(crate) location: String,
     pub(crate) description: String,
 }
 
@@ -46,6 +47,7 @@ pub(crate) struct CurrentActivity {
     pub(crate) start_time: NaiveDateTime,
     pub(crate) activity: String,
     pub(crate) category: String,
+    pub(crate) location: String,
     pub(crate) description: String,
 }
 
@@ -81,6 +83,7 @@ pub(crate) struct EntryForm {
     pub(crate) end_time: String,
     pub(crate) activity: String,
     pub(crate) category: String,
+    pub(crate) location: String,
     pub(crate) description: String,
 }
 
@@ -96,6 +99,7 @@ impl EntryForm {
             end_time: format_hm(next_hour.time()),
             activity: String::new(),
             category: CATEGORIES[0].0.to_string(),
+            location: String::new(),
             description: String::new(),
         }
     }
@@ -109,6 +113,7 @@ impl EntryForm {
             end_time: format_hm(entry.end_time.time()),
             activity: entry.activity.clone(),
             category: entry.category.clone(),
+            location: entry.location.clone(),
             description: entry.description.clone(),
         }
     }
@@ -120,6 +125,7 @@ impl EntryForm {
             end_time: parse_datetime(&self.end_date, &self.end_time)?,
             activity: self.activity.clone(),
             category: self.category.clone(),
+            location: self.location.clone(),
             description: self.description.clone(),
         })
     }
@@ -129,6 +135,7 @@ impl EntryForm {
 pub(crate) struct ActivityForm {
     pub(crate) activity: String,
     pub(crate) category: String,
+    pub(crate) location: String,
     pub(crate) description: String,
 }
 
@@ -137,6 +144,7 @@ impl ActivityForm {
         Self {
             activity: String::new(),
             category: CATEGORIES[0].0.to_string(),
+            location: String::new(),
             description: String::new(),
         }
     }
